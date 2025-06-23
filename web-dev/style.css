@@ -3,4 +3,35 @@ body {
     margin: auto;
     background: #FAFAFA;
     font-family: Helvetica;
+    background-image: url(https://i0.wp.com/www.ourmovielife.com/wp-content/uploads/2018/04/thumb-1920-321927.jpg?fit=1920%2C1080&ssl=1);
+}
+
+div {
+    background-color: lightblue;
+    padding-left: 15px;
+    text-align: center;
+}
+
+ol {
+    align-items: right;
+}
+
+.list {
+    display: inline-block;
+    text-align: center;
+}
+
+table {
+    padding-top: 15px;
+    margin: auto;
+    border: black;
+    border-width: 5px;
+}
+
+tr {
+    padding: 10px;
+}
+
+td {
+    padding-right: 15px;
 }

@@ -107,8 +107,7 @@ Navigate your browser to:
 
 ```
 <YOUR-HOST-NAME>:8080
-```
-
+````
 And you will see your webpage!
 
 ## Exercise 2: Inspecting your webpage
