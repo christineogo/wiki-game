@@ -42,14 +42,9 @@ let%expect_test "get_linked_articles" =
   List.iter (get_linked_articles contents) ~f:print_endline;
   [%expect
     {|
-    All feliforms, such as domestic cats, big cats, hyenas, mongooses, civets
-    Almost all caniforms, such as the dogs, wolves, foxes, ferrets, seals and walruses
-    All cetaceans, such as dolphins, whales and porpoises
-    All bats except fruitbats
-    The carnivorous marsupials, such as the Tasmania devil
-    All birds of prey, such as hawks, eagles, falcons and owls
-    All vultures, both old world and new
-    Most waterfowl, such as gulls, penguins, pelicans, storks, and herons
+    /wiki/Animal
+    /wiki/Caniformia
+    /wiki/Feliformia
     |}]
 ;;
 
