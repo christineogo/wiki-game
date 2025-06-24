@@ -173,6 +173,7 @@ let%expect_test "get_first_item_of_second_unordered_list" =
 
 (* Gets all bolded text from an HTML page. *)
 let get_bolded_text contents : string list =
+  (* use helper function next time *)
   let open Soup in
   let strong_words =
     parse contents
