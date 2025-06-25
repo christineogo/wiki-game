@@ -14,6 +14,56 @@ open! Core
    One nice think about Wikipedia is that stringent content moderation results in
    uniformity in article format. We can expect that all Wikipedia article links parsed
    from a Wikipedia page will have the form "/wiki/<TITLE>". *)
+
+module Article = String
+
+module Network = struct
+  (* We can represent our social network graph as a set of connections, where a connection
+     represents a friendship between two people. *)
+  module Connection = struct
+    module T = struct
+      type t = Article.t * Article.t [@@deriving compare, sexp]
+    end
+
+    (* This funky syntax is necessary to implement sets of [Connection.t]s. This is needed
+       to defined our [Network.t] type later. Using this [Comparable.Make] functor also
+       gives us immutable maps, which might come in handy later. *)
+    include Comparable.Make (T)
+
+    let of_string s =
+      match String.split s ~on:',' with
+      | [ x; y ] -> Some (Article.of_string x, Article.of_string y)
+      | _ -> None
+    ;;
+  end
+
+  type t = Connection.Set.t [@@deriving sexp_of]
+
+module G = Graph.Imperative.Graph.Concrete (Article)
+
+(* We extend our [Graph] structure with the [Dot] API so that we can easily render
+   constructed graphs. Documentation about this API can be found here:
+   https://github.com/backtracking/ocamlgraph/blob/master/src/dot.mli *)
+module Dot = Graph.Graphviz.Dot (struct
+    include G
+
+    (* These functions can be changed to tweak the appearance of the generated
+       graph. Check out the ocamlgraph graphviz API
+       (https://github.com/backtracking/ocamlgraph/blob/master/src/graphviz.mli) for
+       examples of what values can be set here. *)
+    let edge_attributes _ = [ `Dir `None ]
+    let default_edge_attributes _ = []
+    let get_subgraph _ = None
+    let vertex_attributes v = [ `Shape `Box; `Label v; `Fillcolor 1000 ]
+    let vertex_name v = v
+    let default_vertex_attributes _ = []
+    let graph_attributes _ = []
+  end)
+
+(* type t = {
+  name: string;
+  url: string;
+} *)
 let get_linked_articles contents : string list =
   (* plan: get all links, filter to ones that sart with en.wikipedia.org, filter to no namespaces *)
   let open Soup in
@@ -64,12 +114,56 @@ let print_links_command =
    [how_to_fetch] argument along with [File_fetcher] to fetch the articles so that the
    implementation can be tested locally on the small dataset in the ../resources/wiki
    directory. *)
+
+(* let add_connection (connections : (string * string) list) (node1: string) (node2: string) = 
+  List.append connections [(node1,node2)] in
+  print_endline("added connections"); *)
+
 let visualize ?(max_depth = 3) ~origin ~output_file ~how_to_fetch () : unit =
   ignore (max_depth : int);
   ignore (origin : string);
   ignore (output_file : File_path.t);
   ignore (how_to_fetch : File_fetcher.How_to_fetch.t);
-  failwith "TODO"
+  let contents article = File_fetcher.fetch_exn how_to_fetch ~resource:article in
+  let find_neighbors article = get_linked_articles (contents article) in
+  
+  (* let connections = [] in *)
+
+  (* BFS *)
+  let visited = String.Hash_set.create () in
+  let bfs start_node start_connections=
+    let to_visit = Queue.create () in
+    Queue.enqueue to_visit start_node;
+    let rec traverse parent connections =
+      match Queue.dequeue to_visit with
+      | None -> connections
+      | Some current_node ->
+        if not (Hash_set.mem visited current_node)
+        then (
+          Hash_set.add visited current_node;
+          let adjacent_nodes = find_neighbors current_node in
+          List.iter adjacent_nodes ~f:(fun next_node ->
+            Queue.enqueue to_visit next_node;
+            );
+            List.append connections [(parent,current_node)]
+            ) else connections in
+        (* traverse current_node connections
+    in *)
+    traverse start_node start_connections
+  in
+  let total_connections = bfs origin [] in
+
+  let network = Connection.Set.of_list total_connections in
+
+  let graph = G.create () in
+        Set.iter network ~f:(fun (article1, article2) ->
+          (* [G.add_edge] auomatically adds the endpoints as vertices in the graph if
+             they don't already exist. *)
+          G.add_edge graph article1 article2);
+        Dot.output_graph
+          (Out_channel.create (File_path.to_string output_file))
+          graph;
+
 ;;
 
 let visualize_command =

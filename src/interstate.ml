@@ -27,15 +27,36 @@ module Network = struct
      list.map cities ~f:( fun city_a->
      list.map cities ~f:(fun city_b))
   *)
-  let of_file input_file =
+  (* let of_file input_file =
     let cities = In_channel.read_lines (File_path.to_string input_file) in
-    let cities =
-      List.concat_map cities ~f:(fun city -> Connection.of_string city)
+    let routes =
+      List.concat_map cities ~f:(fun line -> Connection.of_string line)
     in
     let connections =
-      List.concat_map cities ~f:(fun city_a ->
-        List.concat_map cities ~f:(fun city_b ->
-          [ city_a, city_b; city_b, city_a ]))
+  List.concat_map routes ~f:(fun route ->
+    List.concat_map (List.zip_exn route (List.tl_exn route)) ~f:(fun (a, b) ->
+      [a, b; b, a])))
+    in
+    Connection.Set.of_list connections
+  ;;
+end *)
+
+  let of_file input_file =
+    let lines = In_channel.read_lines (File_path.to_string input_file) in
+    (* Convert each line like "Chicago,Milwaukee,Madison" into ["Chicago"; "Milwaukee"; "Madison"] *)
+    let routes = List.map lines ~f:(fun line -> Connection.of_string line) in
+    (* For each route, connect adjacent city pairs bidirectionally *)
+    let connections =
+      List.concat_map routes ~f:(fun route ->
+        match route with
+        | [] | [ _ ] -> [] (* skip empty or single-city routes *)
+        | _ ->
+          List.concat_mapi route ~f:(fun i city_a ->
+            if i + 1 < List.length route
+            then (
+              let city_b = List.nth_exn route (i + 1) in
+              [ city_a, city_b; city_b, city_a ])
+            else []))
     in
     Connection.Set.of_list connections
   ;;
