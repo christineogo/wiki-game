@@ -30,7 +30,7 @@ module Network = struct
        gives us immutable maps, which might come in handy later. *)
     include Comparable.Make (T)
 
-    let of_string s =
+    let _of_string s =
       match String.split s ~on:',' with
       | [ x; y ] -> Some (Article.of_string x, Article.of_string y)
       | _ -> None
@@ -38,6 +38,7 @@ module Network = struct
   end
 
   type t = Connection.Set.t [@@deriving sexp_of]
+end
 
 module G = Graph.Imperative.Graph.Concrete (Article)
 
@@ -51,7 +52,7 @@ module Dot = Graph.Graphviz.Dot (struct
        graph. Check out the ocamlgraph graphviz API
        (https://github.com/backtracking/ocamlgraph/blob/master/src/graphviz.mli) for
        examples of what values can be set here. *)
-    let edge_attributes _ = [ `Dir `None ]
+    let edge_attributes _ = [ `Dir `Forward ]
     let default_edge_attributes _ = []
     let get_subgraph _ = None
     let vertex_attributes v = [ `Shape `Box; `Label v; `Fillcolor 1000 ]
@@ -115,55 +116,54 @@ let print_links_command =
    implementation can be tested locally on the small dataset in the ../resources/wiki
    directory. *)
 
-(* let add_connection (connections : (string * string) list) (node1: string) (node2: string) = 
-  List.append connections [(node1,node2)] in
-  print_endline("added connections"); *)
+(* let add_connection (connections : (string * string) list) (node1: string) (node2: string) =
+   List.append connections [(node1,node2)] in
+   print_endline("added connections"); *)
 
 let visualize ?(max_depth = 3) ~origin ~output_file ~how_to_fetch () : unit =
-  ignore (max_depth : int);
-  ignore (origin : string);
-  ignore (output_file : File_path.t);
-  ignore (how_to_fetch : File_fetcher.How_to_fetch.t);
-  let contents article = File_fetcher.fetch_exn how_to_fetch ~resource:article in
+  let contents article =
+    File_fetcher.fetch_exn how_to_fetch ~resource:article
+  in
   let find_neighbors article = get_linked_articles (contents article) in
-  
   (* let connections = [] in *)
-
   (* BFS *)
   let visited = String.Hash_set.create () in
-  let bfs start_node start_connections=
+  let bfs start_node =
     let to_visit = Queue.create () in
     Queue.enqueue to_visit start_node;
-    let rec traverse parent connections =
-      match Queue.dequeue to_visit with
-      | None -> connections
-      | Some current_node ->
-        if not (Hash_set.mem visited current_node)
-        then (
-          Hash_set.add visited current_node;
-          let adjacent_nodes = find_neighbors current_node in
-          List.iter adjacent_nodes ~f:(fun next_node ->
-            Queue.enqueue to_visit next_node;
-            );
-            List.append connections [(parent,current_node)]
-            ) else connections in
-        (* traverse current_node connections
-    in *)
-    traverse start_node start_connections
+    let rec traverse _parent_node depth =
+      if equal depth max_depth
+      then []
+      else (
+        match Queue.dequeue to_visit with
+        | None -> []
+        | Some current_node ->
+          if not (Hash_set.mem visited current_node)
+          then (
+            Hash_set.add visited current_node;
+            let adjacent_nodes = find_neighbors current_node in
+            List.iter adjacent_nodes ~f:(fun next_node ->
+              Queue.enqueue to_visit next_node);
+            List.concat_map adjacent_nodes ~f:(fun next_node ->
+              List.append
+                (traverse next_node (depth + 1))
+                [ current_node, next_node ]))
+          else [])
+    in
+    traverse start_node 0
+    (* in *)
+    (* traverse start_node *)
   in
-  let total_connections = bfs origin [] in
-
-  let network = Connection.Set.of_list total_connections in
-
+  let total_connections = bfs origin in
+  let network = Network.Connection.Set.of_list total_connections in
   let graph = G.create () in
-        Set.iter network ~f:(fun (article1, article2) ->
-          (* [G.add_edge] auomatically adds the endpoints as vertices in the graph if
-             they don't already exist. *)
-          G.add_edge graph article1 article2);
-        Dot.output_graph
-          (Out_channel.create (File_path.to_string output_file))
-          graph;
-
+  Set.iter network ~f:(fun (article1, article2) ->
+    (* [G.add_edge] auomatically adds the endpoints as vertices in the graph if
+       they don't already exist. *)
+    G.add_edge graph article1 article2);
+  Dot.output_graph
+    (Out_channel.create (File_path.to_string output_file))
+    graph
 ;;
 
 let visualize_command =
