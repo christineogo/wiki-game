@@ -72,7 +72,17 @@ let get_linked_articles contents : string list =
   parse contents
   $$ "a"
   |> to_list
-  |> List.filter ~f:(fun a -> String.length (R.attribute "href" a) > 4)
+  |> List.filter ~f:(fun a ->
+    (* print_s [%message (texts a : string list)];
+       let all_attributes =
+       fold_attributes
+       (fun list_of_attributes attribute_name attribute_value ->
+       (attribute_name, attribute_value) :: list_of_attributes)
+       []
+       a
+       in
+       print_s [%message (all_attributes : (string * string) list)]; *)
+    has_attribute "href" a && String.length (R.attribute "href" a) > 4)
   |> List.map ~f:(fun a ->
     match is_wiki (R.attribute "href" a) with
     | "/wiki" -> R.attribute "href" a
@@ -98,6 +108,14 @@ let%expect_test "get_linked_articles" =
     /wiki/Feliformia
     |}]
 ;;
+
+(* article relationship module with type t being parent-child*)
+(* module Article_connection = struct
+  type t =
+    { parent : string
+    ; child : string
+    }
+end *)
 
 let print_links_command =
   let open Command.Let_syntax in
@@ -128,7 +146,7 @@ let visualize ?(max_depth = 3) ~origin ~output_file ~how_to_fetch () : unit =
   (* let connections = [] in *)
   (* BFS *)
   let visited = String.Hash_set.create () in
-  let bfs start_node =
+  let get_article_network start_node =
     let to_visit = Queue.create () in
     Queue.enqueue to_visit start_node;
     let rec traverse _parent_node depth =
@@ -142,19 +160,28 @@ let visualize ?(max_depth = 3) ~origin ~output_file ~how_to_fetch () : unit =
           then (
             Hash_set.add visited current_node;
             let adjacent_nodes = find_neighbors current_node in
+            let () =
+              print_s
+                [%message
+                  (* (to_visit : string Queue.t) *)
+                  (current_node : string)
+                    (* (adjacent_nodes : string list) *)
+                    (visited : string Hash_set.t)]
+            in
             List.iter adjacent_nodes ~f:(fun next_node ->
               Queue.enqueue to_visit next_node);
             List.concat_map adjacent_nodes ~f:(fun next_node ->
               List.append
                 (traverse next_node (depth + 1))
-                [ current_node, next_node ]))
+                [ current_node, next_node ])
+            (* helper function that traverses all the neighbor nodes and THEN add new connection *))
           else [])
     in
     traverse start_node 0
     (* in *)
     (* traverse start_node *)
   in
-  let total_connections = bfs origin in
+  let total_connections = get_article_network origin in
   let network = Network.Connection.Set.of_list total_connections in
   let graph = G.create () in
   Set.iter network ~f:(fun (article1, article2) ->
@@ -200,12 +227,43 @@ let visualize_command =
 
    [max_depth] is useful to limit the time the program spends exploring the graph. *)
 let find_path ?(max_depth = 3) ~origin ~destination ~how_to_fetch () =
-  ignore (max_depth : int);
-  ignore (origin : string);
-  ignore (destination : string);
-  ignore (how_to_fetch : File_fetcher.How_to_fetch.t);
-  failwith "TODO"
+  (* ignore (max_depth : int);
+  ignore (origin : string); *)
+  (* ignore (destination : string);
+  ignore (how_to_fetch : File_fetcher.How_to_fetch.t); *)
+  let contents article =
+    File_fetcher.fetch_exn how_to_fetch ~resource:article
+  in
+  let find_neighbors article = get_linked_articles (contents article) in
+  let visited = String.Hash_set.create () in
+  let rec traverse depth current endpoint =
+    if Hash_set.mem visited current
+    then None
+    else if equal depth max_depth
+    then None
+    else (
+      Hash_set.add visited current;
+      if String.equal current endpoint
+      then Some [ current ]
+      else (
+        (* match current with
+      | endpoint -> Some [ current ] *)
+        (* | _ -> *)
+        let neighbors = find_neighbors current in
+        let neighbor_urls =
+          List.map neighbors ~f:(fun url ->
+            String.append "https://en.wikipedia.org" url)
+        in
+        List.find_map neighbor_urls ~f:(fun next_node ->
+          (* print_endline next_node; *)
+          match traverse (depth + 1) next_node endpoint with
+          | Some path -> Some (current :: path)
+          | None -> None)))
+  in
+  traverse 0 origin destination
 ;;
+
+(* match traverse 0 origin with Some path -> path | None -> [] *)
 
 let find_path_command =
   let open Command.Let_syntax in
